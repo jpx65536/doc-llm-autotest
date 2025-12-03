@@ -1,7 +1,8 @@
 # app/routes.py
-from flask import jsonify
+from flask import jsonify, request
 from .llm_client import chat_with_model
 from .prompt_loader import load_latest_prompt
+from .services.doc_check_service import run_doc_check
 
 def register_routes(app):
     """
@@ -27,7 +28,7 @@ def register_routes(app):
             print("LLM error:", repr(e))
             return jsonify({"error": str(e)}), 500
         
-        
+
     @app.route("/llm_with_prompt/")
     def llm_with_prompt():
         """使用最新的Prompt与大模型对话"""
@@ -50,4 +51,34 @@ def register_routes(app):
         
         except Exception as e:
             print("LLM with prompt error:", repr(e))
+            return jsonify({"error": str(e)}), 500
+        
+    
+    @app.route("/doc_check/", methods=["POST"])
+    def doc_check():
+        """
+        文档检测接口：
+        - 入参：JSON { doc, product, feature }
+        - 逻辑：读取 latest prompt + doc → 调用通义模型
+        - 出参：先返回模型原始回答，后面可以改成结构化 JSON
+        """
+        data = request.get_json(silent=True) or {}
+        doc = data.get("doc", "").strip()
+        product = data.get("product", None)
+        feature = data.get("feature", None)
+
+        if not doc:
+            return jsonify({"error": "No doc provided"}), 400
+        
+        try:
+            answer = run_doc_check(doc, product, feature)
+            return jsonify({
+                "answer": answer,
+                "meta": {
+                    "product": product,
+                    "feature": feature,
+                }
+            })
+        except Exception as e:
+            print("Doc check error:", repr(e))
             return jsonify({"error": str(e)}), 500
