@@ -2,7 +2,7 @@
 from flask import jsonify, request
 from .llm_client import chat_with_model
 from .prompt_loader import load_latest_prompt
-from .services.doc_check_service import run_doc_check
+from .services.doc_check_service import run_doc_check_structured
 
 def register_routes(app):
     """
@@ -71,14 +71,9 @@ def register_routes(app):
             return jsonify({"error": "No doc provided"}), 400
         
         try:
-            answer = run_doc_check(doc, product, feature)
-            return jsonify({
-                "answer": answer,
-                "meta": {
-                    "product": product,
-                    "feature": feature,
-                }
-            })
+            result = run_doc_check_structured(doc, product, feature)
+            return jsonify(result)
+        
         except Exception as e:
             print("Doc check error:", repr(e))
             return jsonify({"error": str(e)}), 500
