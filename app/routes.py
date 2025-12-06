@@ -3,6 +3,8 @@ from flask import jsonify, request
 from .llm_client import chat_with_model
 from .prompt_loader import load_latest_prompt
 from .services.doc_check_service import run_doc_check_structured
+from app.llm_client import LLMRetryableError
+import logging
 
 def register_routes(app):
     """
@@ -16,7 +18,7 @@ def register_routes(app):
 
     @app.route("/llm_test/")
     def llm_test():
-        """测试与大模型的对话功能"""
+        """测试与大模型的对话功能，只用看是否联通即可"""
         try:
             messages = [
                 {'role': 'system', 'content': 'You are a helpful assistant.'},
@@ -31,7 +33,7 @@ def register_routes(app):
 
     @app.route("/llm_with_prompt/")
     def llm_with_prompt():
-        """使用最新的Prompt与大模型对话"""
+        """测试最新的Prompt与大模型对话，只用看是否联通即可"""
         prompt = load_latest_prompt()
         if not prompt:
             return jsonify({"error": "No prompt available"}), 500
@@ -73,7 +75,14 @@ def register_routes(app):
         try:
             result = run_doc_check_structured(doc, product, feature)
             return jsonify(result)
+        except LLMRetryableError as e:
+            logging.warning(f"LLM backend unavailable after retries: {repr(e)}")
+            return jsonify({"error": "LLM service temporarily unavailable"}), 503
+        
+        except RuntimeError as e:
+            logging.error(f"Doc check runtime error: {repr(e)}")
+            return jsonify({"error": "Doc check failed: " + str(e)}), 502
         
         except Exception as e:
-            print("Doc check error:", repr(e))
-            return jsonify({"error": str(e)}), 500
+            logging.exception(f"Unexpected doc_check error")
+            return jsonify({"error": "Internal server error"}), 500

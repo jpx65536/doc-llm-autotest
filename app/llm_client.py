@@ -3,6 +3,26 @@
 import configparser
 from pathlib import Path
 import dashscope
+import logging
+
+from http import HTTPStatus
+from app.common import BackoffConfig, RetryableError, retry_with_backoff
+
+
+class LLMRetryableError(RetryableError):
+    """LLM 调用中属于『短暂错误、适合重试』的异常."""
+    pass
+
+
+_llm_backoff_config = BackoffConfig(
+    max_retries=5,
+    base_delay=1.0,
+    factor=2.0,
+    jitter=True,
+    max_delay=30.0,
+    retry_exceptions=(LLMRetryableError,),
+)
+
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 CONFIG_FILE = BASE_DIR / "config.cfg"
@@ -21,6 +41,7 @@ def init_llm():
     dashscope.api_key = ALIYUN_API_KEY
 
 
+@retry_with_backoff(_llm_backoff_config)
 def chat_with_model(messages: list[dict]) -> str:
     """调用大模型进行对话
 
@@ -37,6 +58,31 @@ def chat_with_model(messages: list[dict]) -> str:
         model=ALIYUN_MODEL,
         messages=messages,
     )
-    print(f"raw response: {response}")
-    answer = response["output"]["choices"][0]["message"]["content"]
-    return answer
+
+    status = getattr(response, "status_code", None)
+    logging.info(f"[LLM RAW] status={status}, resp={response}")
+
+    if status == HTTPStatus.OK:
+        answer = response["output"]["choices"][0]["message"]["content"]
+        return answer
+    
+    retryable_status = {
+        HTTPStatus.TOO_MANY_REQUESTS,      # 429 限流
+        HTTPStatus.INTERNAL_SERVER_ERROR,  # 500
+        HTTPStatus.BAD_GATEWAY,            # 502
+        HTTPStatus.SERVICE_UNAVAILABLE,    # 503
+        HTTPStatus.GATEWAY_TIMEOUT,        # 504
+    }
+
+    if status in retryable_status:
+        raise LLMRetryableError(
+            f"LLM transient error, status={status}, "
+            f"code={getattr(response, 'code', None)}, "
+            f"message={getattr(response, 'message', None)}"
+        )
+    
+    raise RuntimeError(
+        f"LLM call failed, status={status}, "
+        f"code={getattr(response, 'code', None)}, "
+        f"message={getattr(response, 'message', None)}"
+    )
