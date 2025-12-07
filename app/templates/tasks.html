@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>文档测试任务管理</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", "PingFang SC", "Microsoft YaHei", sans-serif;
+            background-color: #f5f5f7;
+            margin: 0;
+            padding: 0;
+        }
+
+        .container {
+            max-width: 1100px;
+            margin: 32px auto;
+            padding: 24px 28px 32px;
+            background-color: #fff;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.06);
+        }
+
+        h1 {
+            font-size: 22px;
+            margin: 0 0 8px;
+        }
+
+        .subtitle {
+            color: #666;
+            font-size: 13px;
+            margin-bottom: 20px;
+        }
+
+        .flex {
+            display: flex;
+            gap: 16px;
+            align-items: center;
+        }
+
+        .btn {
+            padding: 6px 14px;
+            border-radius: 6px;
+            border: none;
+            cursor: pointer;
+            font-size: 13px;
+        }
+
+        .btn-primary {
+            background-color: #1677ff;
+            color: white;
+        }
+
+        .btn-primary:disabled {
+            background-color: #8fb5ff;
+            cursor: not-allowed;
+        }
+
+        .btn-danger {
+            background-color: #ff4d4f;
+            color: white;
+        }
+
+        .btn-secondary {
+            background-color: #f0f0f0;
+            color: #333;
+        }
+
+        .btn + .btn {
+            margin-left: 6px;
+        }
+
+        .toolbar {
+            margin: 4px 0 16px;
+            justify-content: space-between;
+        }
+
+        .table-wrap {
+            margin-top: 10px;
+            border-radius: 10px;
+            overflow: hidden;
+            border: 1px solid #eee;
+            background-color: #fff;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+
+        thead {
+            background-color: #fafafa;
+        }
+
+        th, td {
+            padding: 8px 10px;
+            border-bottom: 1px solid #f0f0f0;
+            text-align: left;
+        }
+
+        th {
+            color: #555;
+            font-weight: 500;
+            white-space: nowrap;
+        }
+
+        tr:hover td {
+            background-color: #fafbfd;
+        }
+
+        .status-tag {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 999px;
+            font-size: 12px;
+        }
+
+        .status-pending {
+            background-color: #fff7e6;
+            color: #d48806;
+        }
+
+        .status-success {
+            background-color: #f6ffed;
+            color: #389e0d;
+        }
+
+        .status-failed {
+            background-color: #fff1f0;
+            color: #cf1322;
+        }
+
+        .text-muted {
+            color: #999;
+            font-size: 12px;
+        }
+
+        .no-data {
+            text-align: center;
+            padding: 24px 0;
+            color: #999;
+            font-size: 13px;
+        }
+
+        /* 创建任务弹窗 */
+        .modal {
+            position: fixed;
+            inset: 0;
+            background-color: rgba(0,0,0,0.25);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 999;
+        }
+
+        .modal.visible {
+            display: flex;
+        }
+
+        .modal-dialog {
+            width: 900px;
+            max-width: 95vw;
+            background-color: #fff;
+            border-radius: 12px;
+            box-shadow: 0 18px 48px rgba(0,0,0,0.14);
+            padding: 24px 28px 28px;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .modal-title {
+            font-size: 16px;
+        }
+
+        .modal-close {
+            border: none;
+            background: transparent;
+            font-size: 18px;
+            cursor: pointer;
+            line-height: 1;
+            padding: 0 4px;
+            color: #999;
+        }
+
+        .modal-close:hover {
+            color: #333;
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1.1fr 2fr;
+            gap: 14px 16px;
+            align-items: flex-start;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 13px;
+            margin-bottom: 4px;
+        }
+
+        input[type="text"], textarea {
+            width: 100%;
+            box-sizing: border-box;
+            padding: 6px 8px;
+            font-size: 13px;
+            border-radius: 6px;
+            border: 1px solid #d9d9d9;
+            outline: none;
+        }
+
+        input[type="text"]:focus,
+        textarea:focus {
+            border-color: #1677ff;
+            box-shadow: 0 0 0 2px rgba(22, 119, 255, 0.1);
+        }
+
+        textarea {
+            min-height: 240px;
+            resize: vertical;
+        }
+
+        .modal-footer {
+            margin-top: 12px;
+            display: flex;
+            align-items: center;
+        }
+
+        .msg {
+            margin-left: 12px;
+            font-size: 12px;
+        }
+
+        .msg-error {
+            color: #cf1322;
+        }
+
+        .msg-ok {
+            color: #389e0d;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>文档测试任务管理</h1>
+    <div class="subtitle">支持创建任务、查看任务列表、单个/批量删除任务</div>
+
+    <!-- 工具栏 -->
+    <div class="flex toolbar">
+        <div>
+            <button class="btn btn-primary" onclick="openCreateModal()">创建任务</button>
+            <button class="btn btn-secondary" onclick="reloadTasks()">刷新列表</button>
+            <button class="btn btn-danger" onclick="deleteSelectedTasks()">删除选中任务</button>
+        </div>
+        <div class="text-muted" id="task-count">共 0 个任务</div>
+    </div>
+
+    <!-- 任务表 -->
+    <div class="table-wrap">
+        <table>
+            <thead>
+            <tr>
+                <th style="width: 36px;"><input type="checkbox" id="select-all" onclick="toggleSelectAll(this)"></th>
+                <th style="width: 60px;">ID</th>
+                <th>任务名称</th>
+                <th style="width: 120px;">创建时间</th>
+                <th style="width: 80px;">状态</th>
+                <th style="width: 90px;">操作</th>
+            </tr>
+            </thead>
+            <tbody id="task-tbody">
+            <!-- 动态填充 -->
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- 创建任务弹窗 -->
+<div id="create-modal" class="modal">
+    <div class="modal-dialog" onclick="event.stopPropagation()">
+        <div class="modal-header">
+            <div class="modal-title">创建新任务</div>
+            <button class="modal-close" onclick="closeCreateModal()">×</button>
+        </div>
+        <div class="form-grid">
+            <div class="form-group">
+                <label for="task-name-input">任务名称（必填）</label>
+                <input id="task-name-input" type="text" placeholder="例如：EIP 文档检查 - V1" />
+            </div>
+            <div class="form-group">
+                <label for="doc-input">文档内容（必填，可直接粘贴）</label>
+                <textarea id="doc-input" placeholder="在这里粘贴要进行检查的文档内容..."></textarea>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-primary" id="create-btn" onclick="createTask()">创建任务</button>
+            <button class="btn btn-secondary" onclick="closeCreateModal()">取消</button>
+            <span id="create-msg" class="msg"></span>
+        </div>
+    </div>
+</div>
+
+<script>
+    const API_BASE = "";  // 同一域名下直接留空
+
+    function statusTag(status) {
+        if (!status) return "";
+        const s = String(status).toLowerCase();
+        let cls = "status-pending";
+        let text = s;
+        if (s === "success") { cls = "status-success"; text = "success"; }
+        else if (s === "failed") { cls = "status-failed"; text = "failed"; }
+        return `<span class="status-tag ${cls}">${text}</span>`;
+    }
+
+    function escapeHtml(str) {
+        return String(str)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;");
+    }
+
+    async function reloadTasks() {
+        const tbody = document.getElementById("task-tbody");
+        tbody.innerHTML = `<tr><td colspan="6" class="no-data">加载中...</td></tr>`;
+        document.getElementById("select-all").checked = false;
+
+        try {
+            const resp = await fetch(API_BASE + "/tasks/");
+            const data = await resp.json();
+            if (!resp.ok || data.service_code !== 2000) {
+                tbody.innerHTML = `<tr><td colspan="6" class="no-data">加载失败：${escapeHtml(data.msg || "未知错误")}</td></tr>`;
+                document.getElementById("task-count").innerText = "共 0 个任务";
+                return;
+            }
+            const tasks = data.tasks || [];
+            if (tasks.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="6" class="no-data">暂无任务，请点击右上角“创建任务”按钮</td></tr>`;
+                document.getElementById("task-count").innerText = "共 0 个任务";
+                return;
+            }
+
+            let html = "";
+            for (const t of tasks) {
+                html += `
+<tr>
+  <td><input type="checkbox" class="task-checkbox" data-task-id="${t.task_id}"></td>
+  <td>${t.task_id}</td>
+  <td title="${escapeHtml(t.task_name || "")}">${escapeHtml(t.task_name || "")}</td>
+  <td>${t.create_time ? escapeHtml(t.create_time) : "-"}</td>
+  <td>${statusTag(t.status)}</td>
+  <td>
+      <button class="btn btn-secondary" style="padding:2px 8px;font-size:12px"
+              onclick="deleteOneTask(${t.task_id})">删除</button>
+  </td>
+</tr>`;
+            }
+            tbody.innerHTML = html;
+            document.getElementById("task-count").innerText = "共 " + tasks.length + " 个任务";
+        } catch (e) {
+            console.error(e);
+            tbody.innerHTML = `<tr><td colspan="6" class="no-data">请求异常：${escapeHtml(e)}</td></tr>`;
+            document.getElementById("task-count").innerText = "共 0 个任务";
+        }
+    }
+
+    function toggleSelectAll(checkbox) {
+        const checked = checkbox.checked;
+        document.querySelectorAll(".task-checkbox").forEach(cb => {
+            cb.checked = checked;
+        });
+    }
+
+    async function deleteOneTask(taskId) {
+        if (!confirm(`确定要删除任务 #${taskId} 吗？`)) return;
+        await deleteTasks([taskId]);
+    }
+
+    async function deleteSelectedTasks() {
+        const ids = [];
+        document.querySelectorAll(".task-checkbox:checked").forEach(cb => {
+            ids.push(parseInt(cb.getAttribute("data-task-id")));
+        });
+        if (ids.length === 0) {
+            alert("请先勾选要删除的任务");
+            return;
+        }
+        if (!confirm(`确定要删除选中的 ${ids.length} 个任务吗？`)) return;
+        await deleteTasks(ids);
+    }
+
+    async function deleteTasks(ids) {
+        try {
+            const resp = await fetch(API_BASE + "/tasks/delete/", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({task_ids: ids})
+            });
+            const data = await resp.json();
+            if (!resp.ok || data.service_code !== 2000) {
+                alert("删除失败：" + (data.msg || "未知错误"));
+                return;
+            }
+            alert(data.msg || "删除成功");
+            await reloadTasks();
+        } catch (e) {
+            console.error(e);
+            alert("删除请求异常：" + e);
+        }
+    }
+
+    function openCreateModal() {
+        const modal = document.getElementById("create-modal");
+        const msgSpan = document.getElementById("create-msg");
+        msgSpan.textContent = "";
+        msgSpan.className = "msg";
+        document.getElementById("task-name-input").value = "";
+        document.getElementById("doc-input").value = "";
+        modal.classList.add("visible");
+    }
+
+    function closeCreateModal() {
+        const modal = document.getElementById("create-modal");
+        modal.classList.remove("visible");
+    }
+
+    async function createTask() {
+        const nameInput = document.getElementById("task-name-input");
+        const docInput = document.getElementById("doc-input");
+        const msgSpan = document.getElementById("create-msg");
+        const btn = document.getElementById("create-btn");
+
+        msgSpan.textContent = "";
+        msgSpan.className = "msg";
+
+        const task_name = nameInput.value.trim();
+        const doc = docInput.value.trim();
+
+        if (!task_name) {
+            msgSpan.textContent = "task_name 不能为空";
+            msgSpan.classList.add("msg-error");
+            nameInput.focus();
+            return;
+        }
+        if (!doc) {
+            msgSpan.textContent = "doc 不能为空";
+            msgSpan.classList.add("msg-error");
+            docInput.focus();
+            return;
+        }
+
+        btn.disabled = true;
+        try {
+            const resp = await fetch(API_BASE + "/tasks/", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({task_name, doc})
+            });
+            const data = await resp.json();
+            if (!resp.ok || data.service_code !== 2000) {
+                msgSpan.textContent = "创建失败：" + (data.msg || "未知错误");
+                msgSpan.classList.add("msg-error");
+                return;
+            }
+            msgSpan.textContent = "创建成功，任务ID：" + data.task_id;
+            msgSpan.classList.add("msg-ok");
+            await reloadTasks();
+            // 稍微停一下再关闭，让用户能看到提示
+            setTimeout(closeCreateModal, 600);
+        } catch (e) {
+            console.error(e);
+            msgSpan.textContent = "请求异常：" + e;
+            msgSpan.classList.add("msg-error");
+        } finally {
+            btn.disabled = false;
+        }
+    }
+
+    // 点击遮罩关闭弹窗
+    document.getElementById("create-modal").addEventListener("click", function () {
+        closeCreateModal();
+    });
+
+    // 初次加载
+    window.addEventListener("DOMContentLoaded", () => {
+        reloadTasks();
+    });
+</script>
+</body>
+</html>

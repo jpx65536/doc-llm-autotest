@@ -1,4 +1,4 @@
-# app/llm_client.py
+# app/llm/llm_client.py
 # 统一管理大模型调用，提供配置
 import configparser
 from pathlib import Path
@@ -24,7 +24,7 @@ _llm_backoff_config = BackoffConfig(
 )
 
 
-BASE_DIR = Path(__file__).resolve().parent.parent
+BASE_DIR = Path(__file__).resolve().parents[2]
 CONFIG_FILE = BASE_DIR / "config.cfg"
 
 config = configparser.ConfigParser()

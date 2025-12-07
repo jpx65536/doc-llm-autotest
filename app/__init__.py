@@ -1,7 +1,7 @@
 # 
 from flask import Flask
-from .llm_client import init_llm
-from.routes import register_routes
+from .llm.llm_client import init_llm
+from.routes import bp as main_bp
 import logging
 
 logging.basicConfig(
@@ -13,5 +13,5 @@ logging.basicConfig(
 def create_app() -> Flask:
     app = Flask(__name__)
     init_llm()
-    register_routes(app)
+    app.register_blueprint(main_bp)
     return app
