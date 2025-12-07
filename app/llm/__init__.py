@@ -1,3 +1,4 @@
+# app/llm/__init__.py
 from .llm_client import chat_with_model, init_llm
 from .doc_check_llm import run_doc_check, parse_doc_check_answer, run_doc_check_structured
 

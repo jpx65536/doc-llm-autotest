@@ -65,3 +65,46 @@ def delete_tasks(task_ids: list[int]) -> int:
             delete(TaskDocLLM).where(TaskDocLLM.task_id.in_(task_ids))
         )
         return result.rowcount
+    
+
+def mark_task_processing(task_id: int) -> bool:
+    """worker 刚拿到任务时调用：pending -> processing"""
+    with get_session() as session:
+        task = session.scalar(
+            select(TaskDocLLM).where(TaskDocLLM.task_id == task_id)
+        )
+        if not task:
+            return False
+        if task.status != TaskStatus.pending:
+            return False
+
+        task.status = TaskStatus.processing
+        return True
+    
+
+def mark_task_success(task_id: int, result: dict) -> bool:
+    """worker 任务成功完成时调用：processing -> success"""
+    return update_task_status(task_id, TaskStatus.success, result)
+
+
+def mark_task_failed(task_id: int, error_msg: str) -> bool:
+    """任务失败 -> failed，把错误信息写进 result"""
+    result = {
+        "success": False,
+        "error": error_msg,
+    }
+    return update_task_status(task_id, TaskStatus.failed, result)
+
+
+def get_pending_task(task_id: int) -> Optional[TaskDocLLM]:
+    """只返回 pending 状态的任务，其他状态直接 None"""
+    with get_session() as session:
+        task = session.scalar(
+            select(TaskDocLLM).where(
+                TaskDocLLM.task_id == task_id,
+                TaskDocLLM.status == TaskStatus.pending,
+            )
+        )
+        if not task:
+            return None
+        return task

@@ -9,6 +9,7 @@ from .db import Base
 
 class TaskStatus(str, PyEnum):
     pending = "pending"
+    processing = "processing"
     success = "success"
     failed = "failed"
 
@@ -27,6 +28,12 @@ class TaskDocLLM(Base):
     )
     doc: Mapped[str] = mapped_column(
         "doc", String(length=65535), nullable=False, comment="文档内容"
+    )
+    product: Mapped[str | None] = mapped_column(
+        "product", String(100), nullable=True, comment="产品名称"
+    )
+    feature: Mapped[str | None] = mapped_column(
+        "feature", String(5000), nullable=True, comment="功能点"
     )
     status: Mapped[TaskStatus] = mapped_column(
         "status", Enum(TaskStatus), nullable=False, default=TaskStatus.pending, comment="任务状态"
