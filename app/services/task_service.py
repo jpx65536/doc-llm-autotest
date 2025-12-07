@@ -98,6 +98,19 @@ def mark_task_failed(task_id: int, error_msg: str) -> bool:
     return update_task_status(task_id, TaskStatus.failed, result)
 
 
+def mark_task_pending(task_id: int) -> bool:
+    """将任务状态改回 pending，用于重试"""
+    with get_session() as session:
+        task = session.scalar(
+            select(TaskDocLLM).where(TaskDocLLM.task_id == task_id)
+        )
+        if not task:
+            return False
+        task.status = TaskStatus.pending
+        task.result = None
+    return True
+
+
 def get_pending_task(task_id: int) -> Optional[TaskDocLLM]:
     """只返回 pending 状态的任务，其他状态直接 None"""
     with get_session() as session:

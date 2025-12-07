@@ -195,3 +195,33 @@ def delete_doc_tasks():
             "service_code": 5001,
             "msg": "任务删除失败: " + str(e),
         }), 500
+    
+
+@bp.route("/task/retry/", methods=["POST"])
+def retry_task():
+    """
+    手动重试某个任务
+    入参：JSON { task_id }
+    出参：JSON { service_code, msg }
+    """
+    data = request.get_json(silent=True) or {}
+    task_id = data.get("task_id")
+    if not task_id:
+        return jsonify({"service_code": 4001, "msg": "task_id 是必填字段"}), 400
+
+    try:
+        task = doc_check_service.retry_task(task_id)
+    except doc_check_service.TaskNotFoundError as e:
+        return jsonify({"service_code": 4040, "msg": "任务不存在"}), 404
+    except doc_check_service.InvalidTaskStatusError as e:
+        return jsonify({"service_code": 4003, "msg": str(e)}), 400
+    except Exception:
+        logging.exception("retry_task error")
+        return jsonify({"service_code": 5000, "msg": "内部错误"}), 500
+    
+    return jsonify({
+        "service_code": 2000,
+        "msg": "任务已重试，已重新放入队列",
+        "task": task.to_dict()
+    }), 200
+        

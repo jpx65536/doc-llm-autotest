@@ -3,18 +3,22 @@ import logging
 import time
 import redis
 import json
+import os
 
 from app.services import task_service
 from app.llm import run_doc_check_structured
 
 TASK_QUEUE_KEY = "doc_llm:task_queue"
 
+REDIS_HOST = os.getenv("REDIS_HOST", "127.0.0.1")
+REDIS_PORT = int(os.getenv("REDIS_PORT", "6379"))
+REDIS_PASSWORD = os.getenv("REDIS_PASSWORD", "")
 
 redis_client = redis.Redis(
-    host="localhost",
-    port=6379,
+    host=REDIS_HOST,
+    port=REDIS_PORT,
     db=0,
-    password="xiao1234",
+    password=REDIS_PASSWORD,
 )
 
 

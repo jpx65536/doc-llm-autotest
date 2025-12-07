@@ -48,4 +48,16 @@ class TaskDocLLM(Base):
         return (
             f"<TaskDocLLM(task_id={self.task_id}, "
             f"name={self.task_name!r}, status={self.status})>"
-        )    
+        )
+    
+    def to_dict(self) -> dict:
+        return {
+            "task_id": self.task_id,
+            "task_name": self.task_name,
+            "product": self.product,
+            "feature": self.feature,
+            "status": self.status,
+            "result": self.result,
+            "create_time": self.create_time.isoformat() if self.create_time else None,
+            "doc": self.doc,
+        }

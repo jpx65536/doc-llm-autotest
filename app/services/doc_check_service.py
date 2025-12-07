@@ -1,20 +1,34 @@
 # app/services/doc_check_service.py
 from __future__ import annotations
 import json
+import os
 from typing import Optional, Dict, Any
 import redis
 from app.services import task_service
 from app.common.models import TaskStatus, TaskDocLLM
 
+REDIS_HOST = os.getenv("REDIS_HOST", "127.0.0.1")
+REDIS_PORT = int(os.getenv("REDIS_PORT", "6379"))
+REDIS_PASSWORD = os.getenv("REDIS_PASSWORD", "")
 
 redis_client = redis.Redis(
-    host="localhost",
-    port=6379,
+    host=REDIS_HOST,
+    port=REDIS_PORT,
     db=0,
-    password="xiao1234",
+    password=REDIS_PASSWORD,
 )
 
 TASK_QUEUE_KEY = "doc_llm:task_queue"
+
+
+class TaskNotFoundError(Exception):
+    """任务不存在"""
+    pass
+
+
+class InvalidTaskStatusError(Exception):
+    """当前状态不允许重试"""
+    pass
 
 
 def submit_doc_task(task_name: str, doc: str, product: str | None, feature: str | None) -> int:
@@ -33,6 +47,28 @@ def submit_doc_task(task_name: str, doc: str, product: str | None, feature: str 
     redis_client.lpush(TASK_QUEUE_KEY, json.dumps(payload, ensure_ascii=False))
 
     return task.task_id
+
+
+def retry_task(task_id: int) -> TaskDocLLM:
+    """校验任务存在 & 状态为 failed，将任务状态改回 pending，再次推入 Redis 队列"""
+    task: TaskDocLLM = task_service.get_task_by_id(task_id)
+    if not task:
+        raise TaskNotFoundError(f"任务 {task_id} 不存在")
+    
+    if task.status != TaskStatus.failed:
+        raise InvalidTaskStatusError(f"任务 {task_id} 当前状态为 {task.status}，不允许重试")
+    
+    retry_result = task_service.mark_task_pending(task_id)
+    if not retry_result:
+        raise Exception(f"任务 {task_id} 重试失败，更新状态出错")
+
+    payload = {
+        "task_id": task_id,
+        "task_name": task.task_name,
+    }
+    redis_client.lpush(TASK_QUEUE_KEY, json.dumps(payload, ensure_ascii=False))
+
+    return task
 
 
 def get_task_detail(task_id: int) -> Optional[Dict[str, Any]]:
