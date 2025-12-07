@@ -1,0 +1,32 @@
+version: "3.9"
+
+services:
+  doc-llm-controller:
+    build: .
+    container_name: doc-llm-controller
+    command: ["python", "run_flask.py"]
+    ports:
+      - "5001:5001"
+    environment:
+      - DB_HOST=host.docker.internal
+      - DB_PORT=3306
+      - DB_USER=root          
+      - DB_PASSWORD=xiao1234  
+      - DB_NAME=doc_llm
+      - REDIS_HOST=host.docker.internal
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=xiao1234
+
+  doc-llm-worker:
+    build: .
+    container_name: doc-llm-worker
+    command: ["python", "run_worker.py"]
+    environment:
+      - DB_HOST=host.docker.internal
+      - DB_PORT=3306
+      - DB_USER=root
+      - DB_PASSWORD=xiao1234
+      - DB_NAME=doc_llm
+      - REDIS_HOST=host.docker.internal
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=xiao1234
