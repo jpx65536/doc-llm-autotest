@@ -6,12 +6,14 @@ from app.common.db import get_session
 from app.common.models import TaskDocLLM, TaskStatus
 
 
-def create_task(task_name: str, doc: str) -> TaskDocLLM:
+def create_task(task_name: str, doc: str, product: str | None, feature: str | None) -> TaskDocLLM:
     """创建新的文档检查任务"""
     with get_session() as session:
         new_task = TaskDocLLM(
             task_name=task_name,
             doc=doc,
+            product=product,
+            feature=feature,
             status=TaskStatus.pending,
         )
         session.add(new_task)

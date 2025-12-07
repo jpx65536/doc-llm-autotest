@@ -142,7 +142,7 @@
             font-size: 13px;
         }
 
-        /* 创建任务弹窗 */
+        /* 创建任务弹窗 & 结果弹窗 共用 */
         .modal {
             position: fixed;
             inset: 0;
@@ -164,6 +164,11 @@
             border-radius: 12px;
             box-shadow: 0 18px 48px rgba(0,0,0,0.14);
             padding: 24px 28px 28px;
+        }
+
+        /* 结果弹窗小一点 */
+        .modal-dialog-sm {
+            width: 720px;
         }
 
         .modal-header {
@@ -225,6 +230,14 @@
             resize: vertical;
         }
 
+        /* 文本域尺寸细分 */
+        textarea.textarea-sm {
+            min-height: 100px;
+        }
+        textarea.textarea-lg {
+            min-height: 240px;
+        }
+
         .modal-footer {
             margin-top: 12px;
             display: flex;
@@ -242,6 +255,56 @@
 
         .msg-ok {
             color: #389e0d;
+        }
+
+        /* 结果按钮样式 */
+        .btn-result {
+            padding: 3px 10px;
+            border-radius: 999px;
+            font-size: 12px;
+            border: none;
+            cursor: pointer;
+        }
+        .btn-result-ok {
+            background-color: #f6ffed;
+            color: #389e0d;
+        }
+        .btn-result-error {
+            background-color: #fff1f0;
+            color: #cf1322;
+        }
+        .btn-result-pending {
+            background-color: #f0f0f0;
+            color: #999;
+        }
+        .btn-result:disabled {
+            cursor: not-allowed;
+            opacity: 0.7;
+        }
+
+        /* 结果弹窗内容 */
+        .result-body {
+            font-size: 13px;
+            max-height: 420px;
+            overflow-y: auto;
+        }
+        .result-summary {
+            margin-bottom: 8px;
+            color: #555;
+        }
+        .bug-list {
+            padding-left: 18px;
+            margin: 0;
+        }
+        .bug-item {
+            margin-bottom: 8px;
+        }
+        .bug-desc {
+            white-space: pre-wrap;
+            line-height: 1.5;
+        }
+        .result-empty {
+            color: #52c41a;
         }
     </style>
 </head>
@@ -268,6 +331,9 @@
                 <th style="width: 36px;"><input type="checkbox" id="select-all" onclick="toggleSelectAll(this)"></th>
                 <th style="width: 60px;">ID</th>
                 <th>任务名称</th>
+                <th style="width: 120px;">产品</th>
+                <th style="width: 220px;">功能点</th>
+                <th style="width: 120px;">结果</th>
                 <th style="width: 120px;">创建时间</th>
                 <th style="width: 80px;">状态</th>
                 <th style="width: 90px;">操作</th>
@@ -293,8 +359,16 @@
                 <input id="task-name-input" type="text" placeholder="例如：EIP 文档检查 - V1" />
             </div>
             <div class="form-group">
+                <label for="feature-input">功能点（可选，简要列出本次关注功能）</label>
+                <textarea id="feature-input" class="textarea-sm" placeholder="例如：创建EIP、绑定ECS、解绑ECS..."></textarea>
+            </div>
+            <div class="form-group">
+                <label for="product-input">产品名称（可选）</label>
+                <input id="product-input" type="text" placeholder="例如：EIP、BLB、VPC..." />
+            </div>
+            <div class="form-group">
                 <label for="doc-input">文档内容（必填，可直接粘贴）</label>
-                <textarea id="doc-input" placeholder="在这里粘贴要进行检查的文档内容..."></textarea>
+                <textarea id="doc-input" class="textarea-lg" placeholder="在这里粘贴要进行检查的文档内容..."></textarea>
             </div>
         </div>
         <div class="modal-footer">
@@ -305,8 +379,25 @@
     </div>
 </div>
 
+<!-- 结果详情弹窗 -->
+<div id="result-modal" class="modal">
+    <div class="modal-dialog modal-dialog-sm" onclick="event.stopPropagation()">
+        <div class="modal-header">
+            <div class="modal-title" id="result-modal-title">任务结果</div>
+            <button class="modal-close" onclick="closeResultModal()">×</button>
+        </div>
+        <div class="result-body" id="result-body">
+            <!-- 动态填充 -->
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeResultModal()">关闭</button>
+        </div>
+    </div>
+</div>
+
 <script>
     const API_BASE = "";  // 同一域名下直接留空
+    let lastTasks = [];   // 缓存列表，结果弹窗要用
 
     function statusTag(status) {
         if (!status) return "";
@@ -325,33 +416,83 @@
             .replace(/>/g, "&gt;");
     }
 
+    function truncate(str, maxLen = 40) {
+        const s = String(str || "");
+        if (s.length <= maxLen) return s;
+        return s.slice(0, maxLen) + "…";
+    }
+
+    // 根据 result 对象计算“结果按钮”的文案和样式
+    function buildResultInfo(result) {
+        if (!result) {
+            return {
+                text: "暂无结果",
+                cls: "btn-result-pending",
+                disabled: true
+            };
+        }
+        try {
+            const bugs = Array.isArray(result.bugs) ? result.bugs : [];
+            if (bugs.length > 0) {
+                return {
+                    text: `发现 ${bugs.length} 个问题`,
+                    cls: "btn-result-error",
+                    disabled: false
+                };
+            }
+            return {
+                text: "未发现问题",
+                cls: "btn-result-ok",
+                disabled: false
+            };
+        } catch (e) {
+            return {
+                text: "结果解析异常",
+                cls: "btn-result-pending",
+                disabled: true
+            };
+        }
+    }
+
     async function reloadTasks() {
         const tbody = document.getElementById("task-tbody");
-        tbody.innerHTML = `<tr><td colspan="6" class="no-data">加载中...</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="9" class="no-data">加载中...</td></tr>`;
         document.getElementById("select-all").checked = false;
 
         try {
             const resp = await fetch(API_BASE + "/tasks/");
             const data = await resp.json();
             if (!resp.ok || data.service_code !== 2000) {
-                tbody.innerHTML = `<tr><td colspan="6" class="no-data">加载失败：${escapeHtml(data.msg || "未知错误")}</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="9" class="no-data">加载失败：${escapeHtml(data.msg || "未知错误")}</td></tr>`;
                 document.getElementById("task-count").innerText = "共 0 个任务";
                 return;
             }
             const tasks = data.tasks || [];
+            lastTasks = tasks;  // 缓存一份
+
             if (tasks.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="6" class="no-data">暂无任务，请点击右上角“创建任务”按钮</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="9" class="no-data">暂无任务，请点击右上角“创建任务”按钮</td></tr>`;
                 document.getElementById("task-count").innerText = "共 0 个任务";
                 return;
             }
 
             let html = "";
             for (const t of tasks) {
+                const rinfo = buildResultInfo(t.result);
                 html += `
 <tr>
   <td><input type="checkbox" class="task-checkbox" data-task-id="${t.task_id}"></td>
   <td>${t.task_id}</td>
   <td title="${escapeHtml(t.task_name || "")}">${escapeHtml(t.task_name || "")}</td>
+  <td title="${escapeHtml(t.product || "")}">${escapeHtml(t.product || "-")}</td>
+  <td title="${escapeHtml(t.feature || "")}">${escapeHtml(truncate(t.feature || ""))}</td>
+  <td>
+      <button class="btn btn-result ${rinfo.cls}"
+              onclick="openResultModal(${t.task_id})"
+              ${rinfo.disabled ? "disabled" : ""}>
+          ${escapeHtml(rinfo.text)}
+      </button>
+  </td>
   <td>${t.create_time ? escapeHtml(t.create_time) : "-"}</td>
   <td>${statusTag(t.status)}</td>
   <td>
@@ -364,7 +505,7 @@
             document.getElementById("task-count").innerText = "共 " + tasks.length + " 个任务";
         } catch (e) {
             console.error(e);
-            tbody.innerHTML = `<tr><td colspan="6" class="no-data">请求异常：${escapeHtml(e)}</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="9" class="no-data">请求异常：${escapeHtml(e)}</td></tr>`;
             document.getElementById("task-count").innerText = "共 0 个任务";
         }
     }
@@ -421,6 +562,8 @@
         msgSpan.className = "msg";
         document.getElementById("task-name-input").value = "";
         document.getElementById("doc-input").value = "";
+        document.getElementById("product-input").value = "";
+        document.getElementById("feature-input").value = "";
         modal.classList.add("visible");
     }
 
@@ -432,6 +575,8 @@
     async function createTask() {
         const nameInput = document.getElementById("task-name-input");
         const docInput = document.getElementById("doc-input");
+        const productInput = document.getElementById("product-input");
+        const featureInput = document.getElementById("feature-input");
         const msgSpan = document.getElementById("create-msg");
         const btn = document.getElementById("create-btn");
 
@@ -440,6 +585,8 @@
 
         const task_name = nameInput.value.trim();
         const doc = docInput.value.trim();
+        const product = productInput.value.trim();
+        const feature = featureInput.value.trim();
 
         if (!task_name) {
             msgSpan.textContent = "task_name 不能为空";
@@ -459,7 +606,7 @@
             const resp = await fetch(API_BASE + "/tasks/", {
                 method: "POST",
                 headers: {"Content-Type": "application/json"},
-                body: JSON.stringify({task_name, doc})
+                body: JSON.stringify({task_name, doc, product, feature})
             });
             const data = await resp.json();
             if (!resp.ok || data.service_code !== 2000) {
@@ -481,9 +628,57 @@
         }
     }
 
+    // ====== 结果弹窗相关 ======
+
+    function findTaskById(taskId) {
+        return lastTasks.find(t => t.task_id === taskId);
+    }
+
+    function openResultModal(taskId) {
+        const task = findTaskById(taskId);
+        if (!task || !task.result) {
+            alert("该任务暂无结果");
+            return;
+        }
+
+        const modal = document.getElementById("result-modal");
+        const titleEl = document.getElementById("result-modal-title");
+        const bodyEl = document.getElementById("result-body");
+
+        titleEl.textContent = `任务 #${task.task_id} 结果`;
+        const result = task.result || {};
+        const bugs = Array.isArray(result.bugs) ? result.bugs : [];
+
+        let html = "";
+        if (bugs.length === 0) {
+            html = `<p class="result-empty">未发现文档问题。</p>`;
+        } else {
+            html += `<p class="result-summary">共发现 <strong>${bugs.length}</strong> 个问题：</p>`;
+            html += `<ol class="bug-list">`;
+            bugs.forEach((bug, idx) => {
+                const desc = bug && bug.description ? bug.description : "";
+                html += `
+<li class="bug-item">
+    <div class="bug-desc">${escapeHtml(desc)}</div>
+</li>`;
+            });
+            html += `</ol>`;
+        }
+
+        bodyEl.innerHTML = html;
+        modal.classList.add("visible");
+    }
+
+    function closeResultModal() {
+        document.getElementById("result-modal").classList.remove("visible");
+    }
+
     // 点击遮罩关闭弹窗
     document.getElementById("create-modal").addEventListener("click", function () {
         closeCreateModal();
+    });
+    document.getElementById("result-modal").addEventListener("click", function () {
+        closeResultModal();
     });
 
     // 初次加载

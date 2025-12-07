@@ -17,14 +17,14 @@ redis_client = redis.Redis(
 TASK_QUEUE_KEY = "doc_llm:task_queue"
 
 
-def submit_doc_task(task_name: str, doc: str) -> int:
+def submit_doc_task(task_name: str, doc: str, product: str | None, feature: str | None) -> int:
     """
     提交一个文档检查任务：
     1）在 MySQL 中创建任务（pending）
     2）往 Redis 队列写入任务消息
     3）返回 task_id
     """
-    task: TaskDocLLM = task_service.create_task(task_name, doc)
+    task: TaskDocLLM = task_service.create_task(task_name, doc, product, feature)
 
     payload = {
         "task_id": task.task_id,
@@ -62,6 +62,8 @@ def list_all_tasks() -> list[dict]:
             "doc": task.doc,
             "status": task.status,
             "result": task.result,
+            "product": task.product,
+            "feature": task.feature,
         }
         for task in tasks
     ]

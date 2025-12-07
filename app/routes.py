@@ -103,6 +103,8 @@ def create_doc_task():
     """
     data = request.get_json(silent=True) or {}
     doc = data.get("doc")
+    product = data.get("product")
+    feature = data.get("feature")
     task_name = data.get("task_name")
     if doc is None or not str(doc).strip():
         return jsonify({"service_code": 4001, "msg": "doc 是必填字段"}), 400
@@ -113,7 +115,7 @@ def create_doc_task():
     task_name = str(task_name).strip()
 
     try:
-        task_id = doc_check_service.submit_doc_task(task_name, doc)
+        task_id = doc_check_service.submit_doc_task(task_name, doc, product, feature)
         return jsonify({
             "service_code": 2000,
             "msg": "任务创建成功",
