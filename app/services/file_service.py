@@ -1,12 +1,9 @@
 # app/services/file_service.py
 
 import io
-from typing import Union
-
 from minio import Minio
 from minio.error import S3Error
 from werkzeug.datastructures import FileStorage
-from werkzeug.utils import secure_filename
 
 MINIO_ENDPOINT = "host.docker.internal:9000"
 MINIO_ACCESS_KEY = "root"
@@ -36,12 +33,12 @@ def save_task_file(task_id: int, file_obj: FileStorage) -> str:
     _ensure_bucket()
 
     orig_filename = file_obj.filename or "unknown"
-    filename = secure_filename(orig_filename)
-    object_name = f"{task_id}_{filename}"
+    object_name = f"{task_id}_{orig_filename}"
 
     # 处理文件流和大小
-    data = file_obj.stream
-    size = file_obj.content_length
+    data_bytes = file_obj.read()
+    size = len(data_bytes)
+    data = io.BytesIO(data_bytes)
 
     if size is None:
         data_bytes = file_obj.read()
@@ -62,3 +59,19 @@ def save_task_file(task_id: int, file_obj: FileStorage) -> str:
     # 存到数据库里的 doc 字段，用这个固定格式
     doc_path = f"minio://{MINIO_BUCKET}/{object_name}"
     return doc_path
+
+
+def download_file(bucket: str, object_name: str) -> bytes:
+    """
+    从 MinIO 下载文件并返回 bytes 内容。
+
+    调用方式：
+        content = download_file("doc-llm-bucket", "15_readme.txt")
+        text = content.decode("utf-8")
+    """
+    try:
+        response = _minio_client.get_object(bucket, object_name)
+        data = response.read()
+        return data
+    except S3Error as e:
+        raise RuntimeError(f"Download from minio failed: {e}") from e

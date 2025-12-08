@@ -7,6 +7,7 @@ import os
 
 from app.services import task_service
 from app.llm import run_doc_check_structured
+from app.worker import doc_loader
 
 TASK_QUEUE_KEY = "doc_llm:task_queue"
 
@@ -36,7 +37,23 @@ def process_task(task_id: int):
         return
     
     try:
-        doc = task.doc
+        try:
+            doc_text = doc_loader.load_doc_for_task(task)
+        except doc_loader.DocPendingError as e:
+            logging.info(f"task {task_id} doc pending, waiting...")
+            try:
+                task = wait_for_doc_ready(task_id)
+                doc_text = doc_loader.load_doc_for_task(task)
+            except Exception as e2:
+                logging.error(f"task {task_id} pending wait failed: {e2}")
+                task_service.mark_task_failed(task_id, str(e2))
+                return
+        except doc_loader.DocPathError as e:
+            logging.error(f"task {task_id} invalid doc path: {e}")
+            task_service.mark_task_failed(task_id, str(e))
+            return
+        
+        doc = doc_text
         product = task.product
         feature = task.feature
 
@@ -44,7 +61,6 @@ def process_task(task_id: int):
 
         task_service.mark_task_success(task_id, result)
         logging.info(f"task {task_id} processed successfully")
-
     except Exception as e:
         logging.exception(f"task {task_id} failed: {repr(e)}")
         task_service.mark_task_failed(task_id, str(e))
@@ -73,3 +89,25 @@ def worker_loop():
             logging.exception("unexpected error in worker loop, sleep 3s")
             time.sleep(3)
         
+
+def wait_for_doc_ready(task_id: int):
+    """
+    当 doc == "__PENDING_FILE__" 时，等待 doc 字段被控制面更新。
+    超过最大重试次数仍未更新则抛出异常。
+    """
+    PENDING_RETRY_INTERVAL = 2
+    PENDING_RETRY_MAX = 5
+
+    for i in range(PENDING_RETRY_MAX):
+        time.sleep(PENDING_RETRY_INTERVAL)
+        task = task_service.get_task_by_id(task_id)
+        if not task:
+            raise RuntimeError(f"task {task_id} disappeared during pending wait")
+        
+        doc = (task.doc or "").strip()
+        if doc != doc_loader.PENDING_MARK:
+            logging.info(f"task {task_id} doc is ready after {i+1} retries: {doc}")
+            return task
+        logging.info(f"task {task_id} doc still pending (retry {i+1}/{PENDING_RETRY_MAX})")
+
+    raise RuntimeError(f"task {task_id} doc still pending after max retries")

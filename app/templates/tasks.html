@@ -45,7 +45,6 @@
             font-size: 13px;
         }
 
-        /* 小号按钮，操作列用 */
         .btn-sm {
             padding: 2px 8px;
             font-size: 12px;
@@ -148,7 +147,6 @@
             font-size: 13px;
         }
 
-        /* 创建任务弹窗 & 结果弹窗 共用 */
         .modal {
             position: fixed;
             inset: 0;
@@ -172,7 +170,6 @@
             padding: 24px 28px 28px;
         }
 
-        /* 结果弹窗小一点 */
         .modal-dialog-sm {
             width: 720px;
         }
@@ -236,7 +233,6 @@
             resize: vertical;
         }
 
-        /* 文本域尺寸细分 */
         textarea.textarea-sm {
             min-height: 100px;
         }
@@ -263,7 +259,6 @@
             color: #389e0d;
         }
 
-        /* 结果按钮样式 */
         .btn-result {
             padding: 3px 10px;
             border-radius: 999px;
@@ -288,7 +283,6 @@
             opacity: 0.7;
         }
 
-        /* 结果弹窗内容 */
         .result-body {
             font-size: 13px;
             max-height: 420px;
@@ -312,14 +306,49 @@
         .result-empty {
             color: #52c41a;
         }
+
+        /* 输入方式切换 tabs */
+        .mode-switch {
+            grid-column: 1 / span 2;
+            margin-bottom: 4px;
+        }
+        .mode-tabs {
+            display: inline-flex;
+            border-radius: 999px;
+            background-color: #f5f5f5;
+            padding: 2px;
+        }
+        .mode-tab {
+            border: none;
+            background: transparent;
+            padding: 4px 14px;
+            font-size: 12px;
+            border-radius: 999px;
+            cursor: pointer;
+            color: #555;
+        }
+        .mode-tab.active {
+            background-color: #1677ff;
+            color: #fff;
+        }
+
+        .file-upload-row {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .file-tip {
+            font-size: 12px;
+            color: #999;
+        }
     </style>
 </head>
 <body>
 <div class="container">
     <h1>文档测试任务管理</h1>
-    <div class="subtitle">支持创建任务、查看任务列表、单个/批量删除任务</div>
+    <div class="subtitle">支持创建任务（文本或文件）、查看任务列表、单个/批量删除任务</div>
 
-    <!-- 工具栏 -->
     <div class="flex toolbar">
         <div>
             <button class="btn btn-primary" onclick="openCreateModal()">创建任务</button>
@@ -329,7 +358,6 @@
         <div class="text-muted" id="task-count">共 0 个任务</div>
     </div>
 
-    <!-- 任务表 -->
     <div class="table-wrap">
         <table>
             <thead>
@@ -346,7 +374,6 @@
             </tr>
             </thead>
             <tbody id="task-tbody">
-            <!-- 动态填充 -->
             </tbody>
         </table>
     </div>
@@ -360,6 +387,15 @@
             <button class="modal-close" onclick="closeCreateModal()">×</button>
         </div>
         <div class="form-grid">
+            <!-- 输入方式切换 -->
+            <div class="mode-switch">
+                <span class="text-muted" style="margin-right:8px;">输入方式：</span>
+                <div class="mode-tabs">
+                    <button id="mode-text-btn" class="mode-tab active" onclick="switchCreateMode('text')">粘贴文本</button>
+                    <button id="mode-file-btn" class="mode-tab" onclick="switchCreateMode('file')">上传文件</button>
+                </div>
+            </div>
+
             <div class="form-group">
                 <label for="task-name-input">任务名称（必填）</label>
                 <input id="task-name-input" type="text" placeholder="例如：xxx云服务文档检查-V1" />
@@ -372,9 +408,20 @@
                 <label for="product-input">产品名称（可选）</label>
                 <input id="product-input" type="text" placeholder="例如：EIP、BLB、VPC..." />
             </div>
-            <div class="form-group">
+
+            <!-- 文本模式：doc 文本域 -->
+            <div class="form-group" id="doc-text-group">
                 <label for="doc-input">文档内容（必填，可直接粘贴）</label>
                 <textarea id="doc-input" class="textarea-lg" placeholder="在这里粘贴要进行检查的文档内容..."></textarea>
+            </div>
+
+            <!-- 文件模式：文件选择 -->
+            <div class="form-group" id="doc-file-group" style="display:none;">
+                <label for="doc-file-input">上传文档文件（必选）</label>
+                <div class="file-upload-row">
+                    <input id="doc-file-input" type="file" />
+                    <div class="file-tip">支持 txt、md 等文本文件；上传后将保存在 MinIO 中，worker 会自动从 MinIO 读取内容进行分析。</div>
+                </div>
             </div>
         </div>
         <div class="modal-footer">
@@ -392,9 +439,7 @@
             <div class="modal-title" id="result-modal-title">任务结果</div>
             <button class="modal-close" onclick="closeResultModal()">×</button>
         </div>
-        <div class="result-body" id="result-body">
-            <!-- 动态填充 -->
-        </div>
+        <div class="result-body" id="result-body"></div>
         <div class="modal-footer">
             <button class="btn btn-secondary" onclick="closeResultModal()">关闭</button>
         </div>
@@ -402,8 +447,9 @@
 </div>
 
 <script>
-    const API_BASE = "";  // 同一域名下直接留空
-    let lastTasks = [];   // 缓存列表，结果弹窗要用
+    const API_BASE = "";
+    let lastTasks = [];
+    let createMode = "text"; // "text" or "file"
 
     function statusTag(status) {
         if (!status) return "";
@@ -428,35 +474,18 @@
         return s.slice(0, maxLen) + "…";
     }
 
-    // 根据 result 对象计算“结果按钮”的文案和样式
     function buildResultInfo(result) {
         if (!result) {
-            return {
-                text: "暂无结果",
-                cls: "btn-result-pending",
-                disabled: true
-            };
+            return { text: "暂无结果", cls: "btn-result-pending", disabled: true };
         }
         try {
             const bugs = Array.isArray(result.bugs) ? result.bugs : [];
             if (bugs.length > 0) {
-                return {
-                    text: `发现 ${bugs.length} 个问题`,
-                    cls: "btn-result-error",
-                    disabled: false
-                };
+                return { text: `发现 ${bugs.length} 个问题`, cls: "btn-result-error", disabled: false };
             }
-            return {
-                text: "未发现问题",
-                cls: "btn-result-ok",
-                disabled: false
-            };
+            return { text: "未发现问题", cls: "btn-result-ok", disabled: false };
         } catch (e) {
-            return {
-                text: "结果解析异常",
-                cls: "btn-result-pending",
-                disabled: true
-            };
+            return { text: "结果解析异常", cls: "btn-result-pending", disabled: true };
         }
     }
 
@@ -474,7 +503,7 @@
                 return;
             }
             const tasks = data.tasks || [];
-            lastTasks = tasks;  // 缓存一份
+            lastTasks = tasks;
 
             if (tasks.length === 0) {
                 tbody.innerHTML = `<tr><td colspan="9" class="no-data">暂无任务，请点击右上角“创建任务”按钮</td></tr>`;
@@ -568,7 +597,6 @@
         }
     }
 
-    // ====== 重试单条任务 ======
     async function retryTask(taskId, status) {
         const s = String(status || "").toLowerCase();
         if (s !== "failed") {
@@ -596,21 +624,52 @@
         }
     }
 
+    function switchCreateMode(mode) {
+        createMode = mode === "file" ? "file" : "text";
+
+        const textBtn = document.getElementById("mode-text-btn");
+        const fileBtn = document.getElementById("mode-file-btn");
+        const textGroup = document.getElementById("doc-text-group");
+        const fileGroup = document.getElementById("doc-file-group");
+
+        if (createMode === "text") {
+            textBtn.classList.add("active");
+            fileBtn.classList.remove("active");
+            textGroup.style.display = "";
+            fileGroup.style.display = "none";
+        } else {
+            textBtn.classList.remove("active");
+            fileBtn.classList.add("active");
+            textGroup.style.display = "none";
+            fileGroup.style.display = "";
+        }
+
+        const msgSpan = document.getElementById("create-msg");
+        msgSpan.textContent = "";
+        msgSpan.className = "msg";
+    }
+
     function openCreateModal() {
         const modal = document.getElementById("create-modal");
         const msgSpan = document.getElementById("create-msg");
         msgSpan.textContent = "";
         msgSpan.className = "msg";
+
         document.getElementById("task-name-input").value = "";
         document.getElementById("doc-input").value = "";
         document.getElementById("product-input").value = "";
         document.getElementById("feature-input").value = "";
+        const fileInput = document.getElementById("doc-file-input");
+        if (fileInput) fileInput.value = "";
+
+        // 默认回到文本模式
+        switchCreateMode("text");
+
         modal.classList.add("visible");
     }
 
     function closeCreateModal() {
-        const modal = document.getElementById("create-modal");
-        modal.classList.remove("visible");
+        document.getElementById("create-modal").classList.remove("visible");
     }
 
     async function createTask() {
@@ -618,6 +677,7 @@
         const docInput = document.getElementById("doc-input");
         const productInput = document.getElementById("product-input");
         const featureInput = document.getElementById("feature-input");
+        const fileInput = document.getElementById("doc-file-input");
         const msgSpan = document.getElementById("create-msg");
         const btn = document.getElementById("create-btn");
 
@@ -625,7 +685,6 @@
         msgSpan.className = "msg";
 
         const task_name = nameInput.value.trim();
-        const doc = docInput.value.trim();
         const product = productInput.value.trim();
         const feature = featureInput.value.trim();
 
@@ -635,31 +694,59 @@
             nameInput.focus();
             return;
         }
-        if (!doc) {
-            msgSpan.textContent = "doc 不能为空";
-            msgSpan.classList.add("msg-error");
-            docInput.focus();
-            return;
-        }
 
         btn.disabled = true;
         try {
-            const resp = await fetch(API_BASE + "/tasks/", {
-                method: "POST",
-                headers: {"Content-Type": "application/json"},
-                body: JSON.stringify({task_name, doc, product, feature})
-            });
-            const data = await resp.json();
+            let resp, data;
+
+            if (createMode === "text") {
+                const doc = docInput.value.trim();
+                if (!doc) {
+                    msgSpan.textContent = "doc 不能为空（当前为粘贴文本模式）";
+                    msgSpan.classList.add("msg-error");
+                    docInput.focus();
+                    return;
+                }
+
+                resp = await fetch(API_BASE + "/tasks/", {
+                    method: "POST",
+                    headers: {"Content-Type": "application/json"},
+                    body: JSON.stringify({task_name, doc, product, feature})
+                });
+                data = await resp.json();
+            } else {
+                const file = fileInput.files[0];
+                if (!file) {
+                    msgSpan.textContent = "请选择要上传的文件";
+                    msgSpan.classList.add("msg-error");
+                    fileInput.focus();
+                    return;
+                }
+
+                const formData = new FormData();
+                formData.append("task_name", task_name);
+                if (product) formData.append("product", product);
+                if (feature) formData.append("feature", feature);
+                formData.append("file", file);
+
+                resp = await fetch(API_BASE + "/tasks/", {
+                    method: "POST",
+                    body: formData   // 不要设置 Content-Type，浏览器会自动加 boundary
+                });
+                data = await resp.json();
+            }
+
             if (!resp.ok || data.service_code !== 2000) {
                 msgSpan.textContent = "创建失败：" + (data.msg || "未知错误");
                 msgSpan.classList.add("msg-error");
                 return;
             }
+
             msgSpan.textContent = "创建成功，任务ID：" + data.task_id;
             msgSpan.classList.add("msg-ok");
             await reloadTasks();
-            // 稍微停一下再关闭，让用户能看到提示
             setTimeout(closeCreateModal, 600);
+
         } catch (e) {
             console.error(e);
             msgSpan.textContent = "请求异常：" + e;
@@ -668,8 +755,6 @@
             btn.disabled = false;
         }
     }
-
-    // ====== 结果弹窗相关 ======
 
     function findTaskById(taskId) {
         return lastTasks.find(t => t.task_id === taskId);
@@ -714,7 +799,6 @@
         document.getElementById("result-modal").classList.remove("visible");
     }
 
-    // 点击遮罩关闭弹窗
     document.getElementById("create-modal").addEventListener("click", function () {
         closeCreateModal();
     });
@@ -722,7 +806,6 @@
         closeResultModal();
     });
 
-    // 初次加载
     window.addEventListener("DOMContentLoaded", () => {
         reloadTasks();
     });
