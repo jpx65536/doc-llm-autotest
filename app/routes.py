@@ -22,6 +22,11 @@ def hello():
     return 'Hello, World!'
 
 
+@bp.route("/health")
+def health():
+    return "ok", 200
+
+
 @bp.route("/llm_test/")
 def llm_test():
     """测试与大模型的对话功能，只用看是否联通即可"""

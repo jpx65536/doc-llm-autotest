@@ -16,6 +16,7 @@ services:
       - REDIS_HOST=host.docker.internal
       - REDIS_PORT=6379
       - REDIS_PASSWORD=xiao1234
+    restart: unless-stopped
 
   doc-llm-worker:
     build: .
@@ -30,3 +31,4 @@ services:
       - REDIS_HOST=host.docker.internal
       - REDIS_PORT=6379
       - REDIS_PASSWORD=xiao1234
+    restart: unless-stopped

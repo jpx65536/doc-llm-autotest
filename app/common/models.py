@@ -2,7 +2,7 @@
 from __future__ import annotations
 from datetime import datetime
 from enum import Enum as PyEnum
-from sqlalchemy import JSON, BigInteger, String, Text, DateTime, Enum, Index
+from sqlalchemy import JSON, BigInteger, String, Text, DateTime, Enum, Index, Integer
 from sqlalchemy.orm import Mapped, mapped_column
 from .db import Base
 
@@ -41,6 +41,12 @@ class TaskDocLLM(Base):
     result: Mapped[dict | None] = mapped_column(
         "result", JSON, nullable=True, comment="执行结果，JSON 格式，pending 时为 NULL",
     )
+    processing_started_at: Mapped[datetime | None] = mapped_column(
+        "processing_started_at", DateTime, nullable=True, comment="任务开始处理的时间",
+    )
+    retry_count: Mapped[int] = mapped_column(
+        "retry_count", Integer, nullable=False, default=0, server_default="0", comment="任务重试次数",
+    )
     __table_args__ = (
         Index("idx_status_ctime", "status", "create_time"),
     )
@@ -59,5 +65,7 @@ class TaskDocLLM(Base):
             "status": self.status,
             "result": self.result,
             "create_time": self.create_time.isoformat() if self.create_time else None,
+            "processing_started_at": self.processing_started_at.isoformat() if self.processing_started_at else None,
+            "retry_count": self.retry_count,
             "doc": self.doc,
         }

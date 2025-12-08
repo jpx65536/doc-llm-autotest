@@ -18,7 +18,7 @@ redis_client = redis.Redis(
     password=REDIS_PASSWORD,
 )
 
-TASK_QUEUE_KEY = "doc_llm:task_queue"
+TASK_QUEUE_READY_KEY = "doc_llm:task_queue:ready"
 
 
 class TaskNotFoundError(Exception):
@@ -44,7 +44,7 @@ def submit_doc_task(task_name: str, doc: str, product: str | None, feature: str 
         "task_id": task.task_id,
         "task_name": task_name,
     }
-    redis_client.lpush(TASK_QUEUE_KEY, json.dumps(payload, ensure_ascii=False))
+    redis_client.lpush(TASK_QUEUE_READY_KEY, json.dumps(payload, ensure_ascii=False))
 
     return task.task_id
 
@@ -66,7 +66,7 @@ def retry_task(task_id: int) -> TaskDocLLM:
         "task_id": task_id,
         "task_name": task.task_name,
     }
-    redis_client.lpush(TASK_QUEUE_KEY, json.dumps(payload, ensure_ascii=False))
+    redis_client.lpush(TASK_QUEUE_READY_KEY, json.dumps(payload, ensure_ascii=False))
 
     return task
 

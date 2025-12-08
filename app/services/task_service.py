@@ -1,7 +1,7 @@
 # app/services/task_service.py
 from __future__ import annotations
 from typing import Optional
-from sqlalchemy import select, delete
+from sqlalchemy import select, delete, update, func
 from app.common.db import get_session
 from app.common.models import TaskDocLLM, TaskStatus
 
@@ -72,16 +72,18 @@ def delete_tasks(task_ids: list[int]) -> int:
 def mark_task_processing(task_id: int) -> bool:
     """worker 刚拿到任务时调用：pending -> processing"""
     with get_session() as session:
-        task = session.scalar(
-            select(TaskDocLLM).where(TaskDocLLM.task_id == task_id)
+        stmt = (
+            update(TaskDocLLM).where(
+                TaskDocLLM.task_id == task_id,
+                TaskDocLLM.status == TaskStatus.pending
+            ).values(
+                status=TaskStatus.processing,
+                processing_started_at=func.now()
+            )
         )
-        if not task:
-            return False
-        if task.status != TaskStatus.pending:
-            return False
-
-        task.status = TaskStatus.processing
-        return True
+        result = session.execute(stmt)
+        session.commit()
+        return result.rowcount == 1
     
 
 def mark_task_success(task_id: int, result: dict) -> bool:
@@ -134,3 +136,26 @@ def update_task_doc(task_id: int, doc: str) -> None:
         if not task:
             raise ValueError(f"任务 {task_id} 不存在")
         task.doc = doc
+
+
+def reclaim_task(task_id: int, timeout_dt) -> bool:
+    """
+    将超时的任务重新放回队列
+    :param timeout_dt: datetime对象，代表“必须早于此时间才会被恢复”
+    """
+    with get_session() as session:
+        stmt = (
+            update(TaskDocLLM).where(
+                TaskDocLLM.task_id == task_id,
+                TaskDocLLM.status == TaskStatus.processing,
+                TaskDocLLM.processing_started_at < timeout_dt
+            ).values(
+                status=TaskStatus.pending,
+                retry_count=TaskDocLLM.retry_count + 1,
+                processing_started_at=None,
+                result=None
+            )
+        )
+        result = session.execute(stmt)
+        session.commit()
+        return result.rowcount == 1

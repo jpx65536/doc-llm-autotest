@@ -9,7 +9,9 @@ from app.services import task_service
 from app.llm import run_doc_check_structured
 from app.worker import doc_loader
 
-TASK_QUEUE_KEY = "doc_llm:task_queue"
+TASK_QUEUE_READY_KEY = "doc_llm:task_queue:ready"
+TASK_QUEUE_PROCESSING_KEY = "doc_llm:task_queue:processing"
+TASK_PROCESSING_TS_KEY = "doc_llm:hash:processing_ts"
 
 REDIS_HOST = os.getenv("REDIS_HOST", "127.0.0.1")
 REDIS_PORT = int(os.getenv("REDIS_PORT", "6379"))
@@ -71,20 +73,28 @@ def worker_loop():
     logging.info("doc_llm_test_worker started, waiting for tasks...")
     while True:
         try:
-            item = redis_client.brpop(TASK_QUEUE_KEY, timeout=10)
-            if not item:
+            raw_item = redis_client.brpoplpush(TASK_QUEUE_READY_KEY, TASK_QUEUE_PROCESSING_KEY, timeout=10)
+            if not raw_item:
                 time.sleep(5)
                 continue # 没有任务，就继续下一轮
 
-            _queue_name, raw_value = item
             try:
-                payload = raw_value.decode("utf-8")
-                data = json.loads(payload)
+                payload_str = raw_item.decode("utf-8")
+                data = json.loads(payload_str)
                 task_id = int(data["task_id"])
             except Exception as e:
-                logging.exception(f"invalid queue item: {raw_value!r}")
+                logging.exception(f"invalid processing queue item: {raw_item!r}")
+                redis_client.lrem(TASK_QUEUE_PROCESSING_KEY, 1, raw_item)
                 continue
-            process_task(task_id)
+            
+            start_ts = int(time.time())
+            redis_client.hset(TASK_PROCESSING_TS_KEY, task_id, start_ts)
+
+            try:
+                process_task(task_id)
+            finally:
+                redis_client.lrem(TASK_QUEUE_PROCESSING_KEY, 1, raw_item)
+                redis_client.hdel(TASK_PROCESSING_TS_KEY, task_id)
         except Exception:
             logging.exception("unexpected error in worker loop, sleep 3s")
             time.sleep(3)
