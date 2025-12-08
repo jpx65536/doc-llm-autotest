@@ -3,7 +3,7 @@ from flask import jsonify, request, Blueprint, render_template
 from .llm.llm_client import chat_with_model
 from .prompt_loader import load_latest_prompt
 from .llm.doc_check_llm import run_doc_check_structured
-from .services import doc_check_service
+from .services import doc_check_service, file_service
 from app.llm.llm_client import LLMRetryableError
 import logging
 
@@ -100,7 +100,59 @@ def create_doc_task():
     提交文档检查任务
     入参：JSON { task_name, doc }
     出参：JSON { service_code, msg, task_id }
+
+    新的文件上传方式：
+        Content-Type: multipart/form-data
+        form fields:
+            task_name: 文本
+            product: 文本（可选）
+            feature: 文本（可选）
+            file: 文件
+        此时 doc 字段会被写成：minio://doc-llm-bucket/{task_id}_{filename}
     """
+    if request.content_type and "multipart/form-data" in request.content_type:
+        return _create_task_with_file()
+
+    return _create_task_with_json()
+
+
+def _create_task_with_file():
+    """"""
+    form = request.form
+    files = request.files
+
+    task_name = form.get("task_name")
+    product = form.get("product")
+    feature = form.get("feature")
+    file_obj = files.get("file")
+
+    if task_name is None or not str(task_name).strip():
+        return jsonify({"service_code": 4001, "msg": "task_name 是必填字段"}), 400
+    if not file_obj:
+        return jsonify({"service_code": 4001, "msg": "file 是必填字段"}), 400
+    
+    task_name = str(task_name).strip()
+    try:
+        placeholder_doc = "__PENDING_FILE__"
+        task_id = doc_check_service.submit_doc_task(task_name=task_name, doc=placeholder_doc, product=product, feature=feature)
+        doc_path = file_service.save_task_file(task_id, file_obj)
+        doc_check_service.update_task_doc(task_id, doc_path)
+        return jsonify({
+            "service_code": 2000,
+            "msg": "任务创建成功（文件已上传）",
+            "task_id": task_id,
+            "doc": doc_path,
+        })
+    except Exception as e:
+        logging.exception("Failed to create doc task with file")
+        return jsonify({
+            "service_code": 5001,
+            "msg": "任务创建失败: " + str(e),
+        }), 500
+
+
+def _create_task_with_json():
+    """通过 JSON 提交任务的处理逻辑"""
     data = request.get_json(silent=True) or {}
     doc = data.get("doc")
     product = data.get("product")

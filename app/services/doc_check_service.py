@@ -108,3 +108,12 @@ def list_all_tasks() -> list[dict]:
 def delete_tasks(task_ids: list[int]) -> int:
     """删除指定任务ID的任务，返回删除的任务数量"""
     return task_service.delete_tasks(task_ids)
+
+
+def update_task_doc(task_id: int, doc: str) -> None:
+    """更新任务的 doc 字段"""
+    task = task_service.get_task_by_id(task_id)
+    if not task:
+        raise TaskNotFoundError(f"任务 {task_id} 不存在")
+    
+    task_service.update_task_doc(task_id, doc)

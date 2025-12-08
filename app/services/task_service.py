@@ -123,3 +123,14 @@ def get_pending_task(task_id: int) -> Optional[TaskDocLLM]:
         if not task:
             return None
         return task
+    
+
+def update_task_doc(task_id: int, doc: str) -> None:
+    """更新任务的 doc 字段"""
+    with get_session() as session:
+        task = session.scalar(
+            select(TaskDocLLM).where(TaskDocLLM.task_id == task_id)
+        )
+        if not task:
+            raise ValueError(f"任务 {task_id} 不存在")
+        task.doc = doc
