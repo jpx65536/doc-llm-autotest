@@ -11,7 +11,12 @@
 
 ### 文档测试流程
 初版效果
-![alt text](image.png)
+主页展示
+![alt text](image-3.png)
+测试结果展示
+![alt text](image-4.png)
+任务创建视图
+![alt text](image-5.png)
 
 ### API 接口
 
