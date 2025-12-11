@@ -1,16 +1,17 @@
 ### 项目介绍
 1.生成基准prompt
 2.设计后端服务，对接线上大模型
-3.对接Jenkins流水线，转发输出待测试文档
-4.对接bug提单系统，自动梳理待解决问题
+3.worker容器轮询redis，从消息队列拿到需要执行的任务
+4.大模型响应慢、限流时采用指数退避进行重试，任务异常丢失时采用reaper巡检进行恢复重新入队
 
 ### 架构图（Mermaid）
+![alt text](image-1.png)
 
 ### LLM prompt 配置
 
 ### 文档测试流程
 初版效果
-![效果图](image.png)
+![alt text](image.png)
 
 ### API 接口
 
@@ -23,6 +24,6 @@
 | **5002**     | 外部依赖失败（比如 Redis/MySQL 错误） |
 | **5003**     | LLM 服务不可用                        |
 
-### Jenkins 对接示例
-
 ### 启动方式
+docker compose up
+![alt text](image-2.png)
