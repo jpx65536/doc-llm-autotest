@@ -5,18 +5,18 @@
 4.大模型响应慢、限流时采用指数退避进行重试，任务异常丢失时采用reaper巡检进行恢复重新入队
 
 ### 架构图（Mermaid）
-![alt text](image-1.png)
+![alt text](./images/image-1.png)
 
 ### LLM prompt 配置
 
 ### 文档测试流程
 初版效果
 主页展示
-![alt text](image-3.png)
+![alt text](./images/image-3.png)
 测试结果展示
-![alt text](image-4.png)
+![alt text](./images/image-4.png)
 任务创建视图
-![alt text](image-5.png)
+![alt text](./images/image-5.png)
 
 ### API 接口
 
@@ -31,4 +31,4 @@
 
 ### 启动方式
 docker compose up
-![alt text](image-2.png)
+![alt text](./images/image-2.png)
