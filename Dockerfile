@@ -17,5 +17,5 @@ RUN apt-get update && apt-get install -y tzdata && \
 COPY . .
 
 EXPOSE 5001
-
-CMD ["python", "run_flask.py"]
+# gunicorn -w 8 -k gthread --threads 8 -b 0.0.0.0:5001 run_flask:app
+CMD ["gunicorn", "-w", "8", "-k", "gthread", "--threads", "2", "-b", "0.0.0.0:5001", "run_flask:app"]

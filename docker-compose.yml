@@ -4,7 +4,7 @@ services:
   doc-llm-controller:
     build: .
     container_name: doc-llm-controller
-    command: ["python", "run_flask.py"]
+    command: ["gunicorn", "-w", "16", "-k", "gthread", "--threads", "8", "-b", "0.0.0.0:5001", "run_flask:app"]
     ports:
       - "5001:5001"
     environment:
